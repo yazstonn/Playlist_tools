@@ -1,0 +1,144 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Playlist_tools.Application.Abstracts;
+using Playlist_Tools.Application.Services;
+using Playlist_Tools.Domain.Entities;
+using Playlist_Tools.Domain.Requests;
+using Playlist_Tools.Handlers;
+using Playlist_Tools.Infrastructure;
+using Playlist_Tools.Infrastructure.Options;
+using Playlist_Tools.Infrastructure.Processors;
+using Playlist_Tools.Infrastructure.Repositories;
+using Scalar.AspNetCore;
+
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<JwtOptions>(
+    builder.Configuration.GetSection(JwtOptions.JwtOptionsKey));
+
+builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireNonAlphanumeric = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequiredLength = 8;
+    options.User.RequireUniqueEmail = true;
+    
+}).AddEntityFrameworkStores<ApplicationDbContext>();
+
+// Add services to the container.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
+                       throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddScoped<IAuthTokenProcessor, AuthTokenProcessor>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAccountService, AccountService>();
+
+builder.Services.AddAuthentication(opt =>
+{
+    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    opt.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme;
+    
+}).AddJwtBearer(options =>
+{
+    var jwtOptions = builder.Configuration.GetSection(JwtOptions.JwtOptionsKey)
+        .Get<JwtOptions>() ?? throw new ArgumentException(nameof(JwtOptions));
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtOptions.Issuer,
+        ValidAudience = jwtOptions.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret))
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            context.Token = context.Request.Cookies["ACCESS_TOKEN"];
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseMigrationsEndPoint();
+    app.MapScalarApiReference(opt =>
+    {
+        opt.WithTitle("Playlist_Tools");
+    });
+}
+else
+{
+    app.UseExceptionHandler("/Home/Error");
+    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
+
+app.UseExceptionHandler(_ => { });
+app.UseHttpsRedirection();
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapPost("/api/account/register", async (RegisterRequest registerRequest,
+    IAccountService accountService) =>
+{
+    await accountService.RegisterUserAsync(registerRequest);
+    
+    return Results.Ok();
+});
+
+app.MapPost("/api/account/login", async (LoginRequest loginRequest,
+    IAccountService accountService) =>
+{
+    await accountService.LoginAsync(loginRequest);
+    
+    return Results.Ok();
+});
+
+app.MapPost("/api/account/refresh", async (HttpContext httpContext,
+    IAccountService accountService) =>
+{
+    var refreshToken = httpContext.Request.Cookies["REFRESH_TOKEN"];
+    
+    await accountService.RefreshTokenAsync(refreshToken);
+    
+    return Results.Ok();
+});
+
+app.MapGet("/api/movies", () => Results.Ok(new List<string>{"Matrix"})).RequireAuthorization();
+
+app.MapStaticAssets();
+
+app.MapControllerRoute(
+        name: "default",
+        pattern: "{controller=Home}/{action=Index}/{id?}")
+    .WithStaticAssets();
+
+
+app.Run();
