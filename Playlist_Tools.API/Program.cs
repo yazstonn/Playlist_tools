@@ -78,7 +78,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllers();
 
 var app = builder.Build();
 
@@ -105,40 +105,10 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapPost("/api/account/register", async (RegisterRequest registerRequest,
-    IAccountService accountService) =>
-{
-    await accountService.RegisterUserAsync(registerRequest);
-    
-    return Results.Ok();
-});
-
-app.MapPost("/api/account/login", async (LoginRequest loginRequest,
-    IAccountService accountService) =>
-{
-    await accountService.LoginAsync(loginRequest);
-    
-    return Results.Ok();
-});
-
-app.MapPost("/api/account/refresh", async (HttpContext httpContext,
-    IAccountService accountService) =>
-{
-    var refreshToken = httpContext.Request.Cookies["REFRESH_TOKEN"];
-    
-    await accountService.RefreshTokenAsync(refreshToken);
-    
-    return Results.Ok();
-});
-
-app.MapGet("/api/movies", () => Results.Ok(new List<string>{"Matrix"})).RequireAuthorization();
+app.UseCors("AllowReactApp");
 
 app.MapStaticAssets();
 
-app.MapControllerRoute(
-        name: "default",
-        pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
 
 
 app.Run();
