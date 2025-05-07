@@ -77,6 +77,16 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000") // Ajustez l'URL selon votre configuration React
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials(); // Important pour les cookies d'authentification
+    });
+});
 
 builder.Services.AddControllers();
 
@@ -106,7 +116,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseCors("AllowReactApp");
-
+app.MapControllers();
 app.MapStaticAssets();
 
 
