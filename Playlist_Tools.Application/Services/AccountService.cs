@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
 using Playlist_tools.Application.Abstracts;
 using Playlist_Tools.Domain.Entities;
 using Playlist_Tools.Domain.Exceptions;
@@ -89,5 +90,58 @@ public class AccountService : IAccountService
         
         _authTokenProcessor.WriteAuthTokenAsHttpOnlyCookie("ACCESS_TOKEN",jwtToken,expirationDate);
         _authTokenProcessor.WriteAuthTokenAsHttpOnlyCookie("REFRESH_TOKEN",user.RefreshToken,refreshTokenExpirationDate);
+    }
+
+    public async Task LoginWithGoogleAsync(ClaimsPrincipal? claimsPrincipal)
+    {
+
+        if (claimsPrincipal == null)
+        {
+            throw new ExternalLoginProviderException("Google", "ClaimsPrincipal is null");
+        }
+        
+        var email = claimsPrincipal.FindFirstValue(ClaimTypes.Email);
+
+        if (email == null)
+        {
+            throw new ExternalLoginProviderException("Google", "Email is null");
+        }
+        
+        var user = await _userManager.FindByEmailAsync(email);
+
+        if (user == null)
+        {
+            var newUser = new User
+            {
+                UserName = email,
+                Email = email,
+                FirstName = claimsPrincipal.FindFirstValue(ClaimTypes.GivenName) ?? string.Empty,
+                LastName = claimsPrincipal.FindFirstValue(ClaimTypes.Surname) ?? string.Empty,
+                EmailConfirmed = true
+
+            };
+            
+            var result = await _userManager.CreateAsync(newUser);
+
+            if (!result.Succeeded)
+            {
+                throw new ExternalLoginProviderException("Google", $"Failed to create user : {
+                    string.Join(", ", result.Errors.Select(e => e.Description))}");
+            }
+            
+            user = newUser;
+        }
+        
+         var info = new UserLoginInfo("Google", claimsPrincipal.FindFirstValue(ClaimTypes.Email ?? string.Empty),"Google");
+         
+         var loginResult = await _userManager.AddLoginAsync(user, info);
+
+         if (!loginResult.Succeeded)
+         {
+             throw new ExternalLoginProviderException("Google", $"Failed to login the user : {
+                 string.Join(", ", loginResult.Errors.Select(e => e.Description))}");
+         }
+
+         await CreateJwtAndRefreshTokens(user);
     }
 }

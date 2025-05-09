@@ -1,4 +1,5 @@
-﻿using Playlist_Tools.Domain.Entities;
+﻿using System.Security.Claims;
+using Playlist_Tools.Domain.Entities;
 using Playlist_Tools.Domain.Requests;
 
 namespace Playlist_tools.Application.Abstracts;
@@ -9,4 +10,5 @@ public interface IAccountService
     Task LoginAsync(LoginRequest loginRequest);
     Task RefreshTokenAsync(string? refreshToken);
     Task CreateJwtAndRefreshTokens(User user);
+    Task LoginWithGoogleAsync(ClaimsPrincipal? claimsPrincipal);
 }
