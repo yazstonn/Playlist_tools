@@ -21,7 +21,6 @@ public class YouTubeServicePerso : IYouTubeService
 
     public async Task<object> GetLikedMusicAsync()
     {
-
         string token = await _userTokenRepository.GetTokenAsync(new Guid("8224a083-3520-4c82-a845-08ddb87d77ec"), "Google");
         var youtubeService = new YouTubeService(new BaseClientService.Initializer
         {
@@ -29,22 +28,35 @@ public class YouTubeServicePerso : IYouTubeService
             ApplicationName = "PlaylistTools"
         });
 
-        var request = youtubeService.PlaylistItems.List("snippet,contentDetails");
-        request.PlaylistId = "LM"; 
-        request.MaxResults = 50;
+        var allItems = new List<object>();
+        string nextPageToken = null;
 
-        var response = await request.ExecuteAsync();
-
-        var result = response.Items.Select(item => new
+        do
         {
-            Title = item.Snippet.Title,
-            VideoId = item.Snippet.ResourceId.VideoId,
-            ChannelTitle = item.Snippet.VideoOwnerChannelTitle,
-            Thumbnail = item.Snippet.Thumbnails?.Medium?.Url
-        }).ToList();
+            var request = youtubeService.PlaylistItems.List("snippet,contentDetails");
+            request.PlaylistId = "LM";
+            request.MaxResults = 50;
+            request.PageToken = nextPageToken; // Utilisez le jeton de page pour la pagination
 
-        return result;
+            var response = await request.ExecuteAsync();
+
+            var result = response.Items.Select(item => new
+            {
+                Title = item.Snippet.Title,
+                VideoId = item.Snippet.ResourceId.VideoId,
+                ChannelTitle = item.Snippet.VideoOwnerChannelTitle,
+                Thumbnail = item.Snippet.Thumbnails?.Medium?.Url
+            }).ToList();
+
+            allItems.AddRange(result);
+
+            nextPageToken = response.NextPageToken; // Mettez à jour le jeton de page pour la prochaine itération
+
+        } while (nextPageToken != null); // Continuez jusqu'à ce qu'il n'y ait plus de pages
+
+        return allItems;
     }
+
 
     public async Task<List<string>> GetPlaylistItemsByNameAsync(string playlistName)
     {

@@ -15,7 +15,7 @@ public class YouTubeController : ControllerBase
         _youTubeService = youTubeService;
     }
 
-    [HttpGet("youtube/liked")]
+    [HttpGet("liked")]
     public async Task<IActionResult> GetLikedMusic()
     {
         /*var userId = User.GetUserId(); // À adapter selon ta méthode d'identification
