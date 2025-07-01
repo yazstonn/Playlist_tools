@@ -10,6 +10,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public new DbSet<User> Users { get; set; }
 
+    public DbSet<UserExternalToken> ExternalTokens { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -18,5 +20,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         
         modelBuilder.Entity<User>()
             .Property(u => u.LastName).HasMaxLength(256);
+
+        modelBuilder.Entity<UserExternalToken>()
+       .HasOne(t => t.User)
+       .WithMany()
+       .HasForeignKey(t => t.UserId);
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Playlist_tools.Application.Abstracts;
+using Playlist_Tools.Application.Abstracts;
 using Playlist_Tools.Domain.Entities;
 using Playlist_Tools.Domain.Exceptions;
 using Playlist_Tools.Domain.Requests;
@@ -14,15 +15,17 @@ public class AccountService : IAccountService
     private readonly UserManager<User> _userManager;
     private readonly IUserRepository _userRepository;
     private readonly SignInManager<User> _signInManager;
+    private readonly IUserTokenRepository _userTokenRepository;
 
 
     public AccountService(IAuthTokenProcessor authTokenProcessor, UserManager<User> userManager,
-        IUserRepository userRepository, SignInManager<User> signInManager)
+        IUserRepository userRepository, SignInManager<User> signInManager, IUserTokenRepository userTokenRepository)
     {
         _authTokenProcessor = authTokenProcessor;
         _userManager = userManager;
         _userRepository = userRepository;
         _signInManager = signInManager;
+        _userTokenRepository = userTokenRepository;
     }
 
     public async Task RegisterUserAsync(RegisterRequest registerRequest)
@@ -141,8 +144,8 @@ public class AccountService : IAccountService
             }
         }
 
-        // Tu peux ici stocker l'access token dans un champ ou un service externe :
-        // await _tokenStorageService.SaveAccessToken(user.Id, accessToken);
+        await _userTokenRepository.SaveTokenAsync(user.Id, "Google", accessToken, DateTime.UtcNow.AddHours(1));
+
 
         // Optionnel : connecter l'utilisateur (via cookie ou JWT)
         await _signInManager.SignInAsync(user, isPersistent: false);

@@ -1,29 +1,31 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using System.Net.Http.Headers;
+﻿using Google.Apis.YouTube.v3;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using Playlist_Tools.Application.Abstracts;
 
-namespace Playlist_Tools.Controllers
+[ApiController]
+[Route("api/[controller]")]
+public class YouTubeController : ControllerBase
 {
-    public class YoutubeController : Controller
+    private readonly IYouTubeService _youTubeService;
+
+    public YouTubeController(IYouTubeService youTubeService)
     {
+        _youTubeService = youTubeService;
+    }
 
-        [HttpGet("youtube/playlists")]
-        public async Task<IActionResult> GetPlaylists([FromServices] IHttpContextAccessor httpContextAccessor)
-        {
-            var accessToken = httpContextAccessor.HttpContext.User.FindFirst("YouTubeAccessToken")?.Value;
+    [HttpGet("youtube/liked")]
+    public async Task<IActionResult> GetLikedMusic()
+    {
+        /*var userId = User.GetUserId(); // À adapter selon ta méthode d'identification
+        var token = await tokenRepo.GetTokenAsync(userId, "Google");
 
-            if (string.IsNullOrEmpty(accessToken))
-                return Unauthorized("No access token");
+        if (token == null)
+            return Unauthorized();*/
 
-            var client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        var likedTracks = await _youTubeService.GetLikedMusicAsync();
 
-            var response = await client.GetAsync("https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true");
-            if (!response.IsSuccessStatusCode)
-                return BadRequest("Failed to fetch playlists");
-
-            var content = await response.Content.ReadAsStringAsync();
-            return Content(content, "application/json");
-        }
-
+        return Ok(likedTracks);
     }
 }

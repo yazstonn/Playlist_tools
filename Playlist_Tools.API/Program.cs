@@ -1,10 +1,12 @@
-using System.Text;
+using Google.Apis.YouTube.v3;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Playlist_tools.Application.Abstracts;
+using Playlist_Tools.Application.Abstracts;
 using Playlist_Tools.Application.Services;
 using Playlist_Tools.Domain.Entities;
 using Playlist_Tools.Domain.Requests;
@@ -14,6 +16,7 @@ using Playlist_Tools.Infrastructure.Options;
 using Playlist_Tools.Infrastructure.Processors;
 using Playlist_Tools.Infrastructure.Repositories;
 using Scalar.AspNetCore;
+using System.Text;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +45,9 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddScoped<IAuthTokenProcessor, AuthTokenProcessor>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IYouTubeService, YouTubeServicePerso>();
+builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -71,6 +77,13 @@ builder.Services.AddAuthentication(opt =>
     options.ClientId = clientId;
     options.ClientSecret = clientSecret;
     options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+
+    options.SaveTokens = true;
+
+    options.Scope.Add("openid");
+    options.Scope.Add("profile");
+    options.Scope.Add("email");
+    options.Scope.Add("https://www.googleapis.com/auth/youtube.readonly");
 }).AddJwtBearer(options =>
 {
     var jwtOptions = builder.Configuration.GetSection(JwtOptions.JwtOptionsKey)
