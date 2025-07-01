@@ -53,15 +53,16 @@ builder.Services.AddAuthentication(opt =>
     
 }).AddCookie().AddGoogle(options =>
 {
-    var clientId = builder.Configuration["Authentication:Google:ClientId"];
+    var clientId = "1049306400638-cbkjugjqa606cpgsd2tfhuml6ch9e2l1.apps.googleusercontent.com";//builder.Configuration["Authentication:Google:ClientId"];
 
     if (string.IsNullOrEmpty(clientId))
     {
         throw new ArgumentNullException(nameof(clientId), "Google client id not found.");
     }
-    
-    var clientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
-    
+
+    var clientSecret = "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";//builder.Configuration["Authentication:Google:ClientSecret"];
+
+
     if (string.IsNullOrEmpty(clientSecret))
     {
         throw new ArgumentNullException(nameof(clientSecret), "Google secret not found.");
@@ -103,7 +104,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:3000") // Ajustez l'URL selon votre configuration React
+        policy.WithOrigins("http://localhost:8080") // Ajustez l'URL selon votre configuration React
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials(); // Important pour les cookies d'authentification

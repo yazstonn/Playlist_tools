@@ -1,9 +1,10 @@
-﻿using System.Security.Claims;
+﻿using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Playlist_tools.Application.Abstracts;
 using Playlist_Tools.Domain.Entities;
 using Playlist_Tools.Domain.Exceptions;
 using Playlist_Tools.Domain.Requests;
+using System.Security.Claims;
 
 namespace Playlist_Tools.Application.Services;
 
@@ -12,13 +13,16 @@ public class AccountService : IAccountService
     private readonly IAuthTokenProcessor _authTokenProcessor;
     private readonly UserManager<User> _userManager;
     private readonly IUserRepository _userRepository;
+    private readonly SignInManager<User> _signInManager;
+
 
     public AccountService(IAuthTokenProcessor authTokenProcessor, UserManager<User> userManager,
-        IUserRepository userRepository)
+        IUserRepository userRepository, SignInManager<User> signInManager)
     {
         _authTokenProcessor = authTokenProcessor;
         _userManager = userManager;
         _userRepository = userRepository;
+        _signInManager = signInManager;
     }
 
     public async Task RegisterUserAsync(RegisterRequest registerRequest)
@@ -92,56 +96,80 @@ public class AccountService : IAccountService
         _authTokenProcessor.WriteAuthTokenAsHttpOnlyCookie("REFRESH_TOKEN",user.RefreshToken,refreshTokenExpirationDate);
     }
 
-    public async Task LoginWithGoogleAsync(ClaimsPrincipal? claimsPrincipal)
+    public async Task LoginWithGoogleAsync(ClaimsPrincipal principal, string accessToken)
     {
-
-        if (claimsPrincipal == null)
+        if (principal == null)
         {
             throw new ExternalLoginProviderException("Google", "ClaimsPrincipal is null");
         }
-        
-        var email = claimsPrincipal.FindFirstValue(ClaimTypes.Email);
 
-        if (email == null)
+        var email = principal.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrEmpty(email))
         {
             throw new ExternalLoginProviderException("Google", "Email is null");
         }
-        
-        var user = await _userManager.FindByEmailAsync(email);
 
+        var user = await _userManager.FindByEmailAsync(email);
         if (user == null)
         {
-            var newUser = new User
+            user = new User
             {
                 UserName = email,
                 Email = email,
-                FirstName = claimsPrincipal.FindFirstValue(ClaimTypes.GivenName) ?? string.Empty,
-                LastName = claimsPrincipal.FindFirstValue(ClaimTypes.Surname) ?? string.Empty,
+                FirstName = principal.FindFirstValue(ClaimTypes.GivenName) ?? string.Empty,
+                LastName = principal.FindFirstValue(ClaimTypes.Surname) ?? string.Empty,
                 EmailConfirmed = true
-
             };
-            
-            var result = await _userManager.CreateAsync(newUser);
 
-            if (!result.Succeeded)
+            var createResult = await _userManager.CreateAsync(user);
+            if (!createResult.Succeeded)
             {
-                throw new ExternalLoginProviderException("Google", $"Failed to create user : {
-                    string.Join(", ", result.Errors.Select(e => e.Description))}");
+                throw new ExternalLoginProviderException("Google", $"Failed to create user: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
             }
-            
-            user = newUser;
         }
-        
-         var info = new UserLoginInfo("Google", claimsPrincipal.FindFirstValue(ClaimTypes.Email ?? string.Empty),"Google");
-         
-         var loginResult = await _userManager.AddLoginAsync(user, info);
 
-         if (!loginResult.Succeeded)
-         {
-             throw new ExternalLoginProviderException("Google", $"Failed to login the user : {
-                 string.Join(", ", loginResult.Errors.Select(e => e.Description))}");
-         }
+        // Vérifie si l'utilisateur a déjà un login externe Google
+        var userLogins = await _userManager.GetLoginsAsync(user);
+        if (!userLogins.Any(l => l.LoginProvider == "Google"))
+        {
+            var loginInfo = new UserLoginInfo("Google", email, "Google");
+            var loginResult = await _userManager.AddLoginAsync(user, loginInfo);
 
-         await CreateJwtAndRefreshTokens(user);
+            if (!loginResult.Succeeded)
+            {
+                throw new ExternalLoginProviderException("Google", $"Failed to link Google login: {string.Join(", ", loginResult.Errors.Select(e => e.Description))}");
+            }
+        }
+
+        // Tu peux ici stocker l'access token dans un champ ou un service externe :
+        // await _tokenStorageService.SaveAccessToken(user.Id, accessToken);
+
+        // Optionnel : connecter l'utilisateur (via cookie ou JWT)
+        await _signInManager.SignInAsync(user, isPersistent: false);
+
+        // Ou générer JWT (si tu es en mode stateless)
+        await CreateJwtAndRefreshTokens(user);
     }
+
+
+    public async Task LoginWithGoogleTokenAsync(GoogleJsonWebSignature.Payload payload)
+    {
+        var user = await _userManager.FindByEmailAsync(payload.Email);
+        if (user == null)
+        {
+            user = new User
+            {
+                FirstName = payload.GivenName,
+                LastName = payload.FamilyName,
+                UserName = payload.Email,
+                Email = payload.Email,
+                // autres champs utiles
+            };
+            await _userManager.CreateAsync(user);
+        }
+
+
+        await CreateJwtAndRefreshTokens(user);
+    }
+
 }
